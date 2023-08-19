@@ -1,0 +1,49 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+#########################################################
+# Concurrency allows running 1 job or workflow at a time
+#
+# If 1st is running and 2nd is triggered,
+#   - 1st (which was running) will continue running
+#   - 2nd (latest) will go to pending state
+#
+# If 1st running, 2nd in pending and 3rd is triggered,
+#   - 1st (which was running) will continue running
+#   - 2nd (which was pending) will be cancelled
+#   - 3rd (latest) will go to pending state
+#########################################################
+concurrency:
+  group: deploy
+
+jobs:
+  # test:
+  #   name: test
+  #   uses: dfinitiv/mojo-users/.github/workflows/test.yml@main
+  deploy-dev:
+    name: deploy to dev
+    # needs: test
+    uses: dfinitiv/mojo-users/.github/workflows/deploy-to-env.yml@main
+    with:
+      domain_name: 'mojo-dev.dfinitiv.io'
+      deploy_env: dev
+      oidc_role: arn:aws:iam::922113822777:role/GitHubOidcRole
+  # deploy-test:
+  #   name: deploy to test
+  #   needs: deploy-dev
+  #   uses: dfinitiv/mojo-users/.github/workflows/deploy-to-env.yml@main
+  #   with:
+  #     domain_name: 'mojo-test.dfinitiv.io'
+  #     deploy_env: test
+  #     oidc_role: arn:aws:iam::922113822777:role/GitHubOidcRole
+  # deploy-prod:
+  #   name: deploy to prod
+  #   needs: deploy-test
+  #   uses: dfinitiv/mojo-users/.github/workflows/deploy-to-env.yml@main
+  #   with:
+  #     domain_name: 'mojo.dfinitiv.io'
+  #     deploy_env: prod
+  #     oidc_role: arn:aws:iam::349520124959:role/GitHubOidcRole
