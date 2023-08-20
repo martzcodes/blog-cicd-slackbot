@@ -5,9 +5,6 @@ on:
       deploy_env:
         required: true
         type: string
-      domain_name:
-        required: true
-        type: string
       oidc_role:
         required: true
         type: string
@@ -15,10 +12,6 @@ on:
     inputs:
       deploy_env:
         description: 'Environment to deploy to'
-        required: true
-        type: string
-      domain_name:
-        description: 'Base Url for REST APIs'
         required: true
         type: string
       oidc_role:
@@ -56,7 +49,6 @@ jobs:
           env: ${{ inputs.deploy_env }}
       - name: ${{ inputs.deploy_env }} deploy
         env:
-          DOMAIN_NAME: ${{ inputs.domain_name }}
           DEPLOY_ENV: ${{ inputs.deploy_env }}
         run: npx cdk deploy --ci --require-approval never --concurrency 5 -v
       - name: update deployment status

@@ -6,15 +6,15 @@ export const convertToJSON = (str: string) => {
   const result: Record<string, any> = {};
 
   // Split by '&' and iterate over each key-value pair
-  str.split('&').forEach((pair: string) => {
-      const [key, value] = pair.split('=');
-      
-      // Use decodeURIComponent to handle URL-encoded characters
-      result[decodeURIComponent(key)] = decodeURIComponent(value);
+  str.split("&").forEach((pair: string) => {
+    const [key, value] = pair.split("=");
+
+    // Use decodeURIComponent to handle URL-encoded characters
+    result[decodeURIComponent(key)] = decodeURIComponent(value);
   });
 
   return result;
-}
+};
 
 export const handler = async (event: APIGatewayEvent) => {
   const body = convertToJSON(event.body || "");

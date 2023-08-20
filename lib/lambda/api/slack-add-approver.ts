@@ -1,7 +1,10 @@
 import { APIGatewayEvent } from "aws-lambda";
 import { ddbDocClient } from "../common/dynamodb";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import {
+  GetSecretValueCommand,
+  SecretsManagerClient,
+} from "@aws-sdk/client-secrets-manager";
 import { slackToJson } from "../common/slackToJson";
 
 const sm = new SecretsManagerClient({});
@@ -39,7 +42,7 @@ export const handler = async (event: APIGatewayEvent) => {
         })
       );
       const slackToken = JSON.parse(secret.SecretString || "").SLACK_TOKEN;
-      const slackAuthorityRes = await fetch(
+      const slackUserRes = await fetch(
         `https://slack.com/api/users.profile.get?user=${userId}`,
         {
           method: "GET",
@@ -49,20 +52,23 @@ export const handler = async (event: APIGatewayEvent) => {
           },
         }
       );
-      const { profile } = await slackAuthorityRes.json();
-      const user = {
-        id: userId,
-        name: profile.real_name,
-        image: profile.image_24,
-        email: profile.email,
-      };
-      existingItem.approvers[userId] = user;
-      await ddbDocClient.send(
-        new PutCommand({
-          TableName: process.env.TABLE_NAME,
-          Item: existingItem,
-        })
-      );
+      const slackUser = await slackUserRes.json();
+      if (slackUser.ok) {
+        const { profile } = slackUser;
+        const user = {
+          id: userId,
+          name: profile.real_name,
+          image: profile.image_24,
+          email: profile.email,
+        };
+        existingItem.approvers[userId] = user;
+        await ddbDocClient.send(
+          new PutCommand({
+            TableName: process.env.TABLE_NAME,
+            Item: existingItem,
+          })
+        );
+      }
     }
   }
 

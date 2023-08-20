@@ -1,18 +1,18 @@
 import { APIGatewayEvent } from "aws-lambda";
 import { ddbDocClient } from "../common/dynamodb";
-import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { nextEnvs } from "../common/nextEnvs";
-import { domains } from "../common/domains";
 import { oidcs } from "../common/oidcs";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import {
+  GetSecretValueCommand,
+  SecretsManagerClient,
+} from "@aws-sdk/client-secrets-manager";
 
 const sm = new SecretsManagerClient({});
 
 export const handler = async (event: APIGatewayEvent) => {
-  // Recieved slack interactive message
   const decodedString = decodeURIComponent(event.body!);
   const jsonString = decodedString.replace("payload=", "");
-  // Parse the jsonString to obtain a JavaScript object
   const jsonObject = JSON.parse(jsonString);
   const message = jsonObject.message;
   const approved = jsonObject.actions[0].value === "approved";
@@ -21,6 +21,7 @@ export const handler = async (event: APIGatewayEvent) => {
     .split("+deployment+to+")[1]
     .split("+by+")[0];
   const authority = jsonObject.user.name;
+  const branch = jsonObject.message.text.split("Branch:*\n")[1].split("+")[0];
 
   const secret = await sm.send(
     new GetSecretValueCommand({
@@ -42,7 +43,6 @@ export const handler = async (event: APIGatewayEvent) => {
   );
   const slackAuthority = await slackAuthorityRes.json();
   const userImg = slackAuthority.profile.image_24;
-  const branch = jsonObject.message.text.split("Branch:*\n")[1].split("+")[0];
   message.blocks = message.blocks.filter((msg: any) => msg.type !== "actions");
   message.blocks[0].text.text = message.blocks[0].text.text.replace(/\+/g, " ");
   const approveBlock = message.blocks.findIndex(
@@ -215,6 +215,10 @@ export const handler = async (event: APIGatewayEvent) => {
         )
     );
 
+    await ddbDocClient.send(
+      new PutCommand({ TableName: process.env.TABLE_NAME, Item: existingItem })
+    );
+
     if (approved) {
       const githubListWorkflowsRes = await fetch(
         `https://api.github.com/repos/${existingItem.owner}/${repo}/actions/workflows`,
@@ -236,7 +240,7 @@ export const handler = async (event: APIGatewayEvent) => {
           statusCode: 404,
         };
       }
-      const githubRes = await fetch(
+      await fetch(
         `https://api.github.com/repos/${existingItem.owner}/${repo}/actions/workflows/${workflow.id}/dispatches`,
         {
           method: "POST",
@@ -244,7 +248,6 @@ export const handler = async (event: APIGatewayEvent) => {
             ref: branch,
             inputs: {
               deploy_env: nextEnvs[env],
-              domain_name: domains[nextEnvs[env]],
               oidc_role: oidcs[nextEnvs[env]],
             },
           }),
@@ -276,64 +279,6 @@ export const handler = async (event: APIGatewayEvent) => {
       statusCode: 500,
       body: JSON.stringify({ slack }),
     };
-  }
-
-  await ddbDocClient.send(
-    new PutCommand({ TableName: process.env.TABLE_NAME, Item: existingItem })
-  );
-
-  if ((!needsApproval || approvedByApprover) && approved) {
-    const envLatest = await ddbDocClient.send(
-      new GetCommand({
-        TableName: process.env.TABLE_NAME,
-        Key: {
-          pk: `LATEST`,
-          sk: `${nextEnvs[env]}`,
-        },
-      })
-    );
-    const updatedRepo = {
-      authority,
-      url: existingItem.url,
-      sha: existingItem.sha,
-      deploymentId: existingItem.deploymentId,
-      deployedAt: Date.now(),
-      branch: existingItem.branch,
-      owner: existingItem.owner,
-    };
-    if (!envLatest.Item) {
-      await ddbDocClient.send(
-        new PutCommand({
-          TableName: process.env.TABLE_NAME,
-          Item: {
-            pk: `LATEST`,
-            sk: `${nextEnvs[env]}`,
-            repos: {
-              [repo]: updatedRepo,
-            },
-          },
-        })
-      );
-    } else {
-      // Update existingItem by replacing the repo
-      await ddbDocClient.send(
-        new UpdateCommand({
-          TableName: process.env.TABLE_NAME,
-          Key: {
-            pk: `LATEST`,
-            sk: `${nextEnvs[env]}`,
-          },
-          // update the repos attribute
-          UpdateExpression: "SET repos.#repo = :repo",
-          ExpressionAttributeNames: {
-            "#repo": repo,
-          },
-          ExpressionAttributeValues: {
-            ":repo": updatedRepo,
-          },
-        })
-      );
-    }
   }
 
   return {

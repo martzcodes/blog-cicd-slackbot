@@ -1,8 +1,11 @@
 import { APIGatewayEvent } from "aws-lambda";
 import { ddbDocClient } from "../common/dynamodb";
-import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { nextEnvs } from "../common/nextEnvs";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import {
+  GetSecretValueCommand,
+  SecretsManagerClient,
+} from "@aws-sdk/client-secrets-manager";
 
 const sm = new SecretsManagerClient({});
 
@@ -284,6 +287,59 @@ export const handler = async (event: APIGatewayEvent) => {
   await ddbDocClient.send(
     new PutCommand({ TableName: process.env.TABLE_NAME, Item: item })
   );
+
+  if (status === "success") {
+    const envLatest = await ddbDocClient.send(
+      new GetCommand({
+        TableName: process.env.TABLE_NAME,
+        Key: {
+          pk: `LATEST`,
+          sk: `${nextEnvs[env]}`,
+        },
+      })
+    );
+    const updatedRepo = {
+      url: item.url,
+      sha: item.sha,
+      deploymentId: item.deploymentId,
+      deployedAt: Date.now(),
+      branch: item.branch,
+      owner: item.owner,
+    };
+    if (!envLatest.Item) {
+      await ddbDocClient.send(
+        new PutCommand({
+          TableName: process.env.TABLE_NAME,
+          Item: {
+            pk: `LATEST`,
+            sk: `${nextEnvs[env]}`,
+            repos: {
+              [repo]: updatedRepo,
+            },
+          },
+        })
+      );
+    } else {
+      // Update existingItem by replacing the repo
+      await ddbDocClient.send(
+        new UpdateCommand({
+          TableName: process.env.TABLE_NAME,
+          Key: {
+            pk: `LATEST`,
+            sk: `${nextEnvs[env]}`,
+          },
+          // update the repos attribute
+          UpdateExpression: "SET repos.#repo = :repo",
+          ExpressionAttributeNames: {
+            "#repo": repo,
+          },
+          ExpressionAttributeValues: {
+            ":repo": updatedRepo,
+          },
+        })
+      );
+    }
+  }
 
   return {
     statusCode: 200,

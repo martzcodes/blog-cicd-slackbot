@@ -10,7 +10,6 @@ import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
 export interface BlogCicdSlackbotStackProps extends cdk.StackProps {
-  domains: Record<string, string>;
   nextEnvs: Record<string, string>;
   oidcs: Record<string, string>;
   secretArn: string;
@@ -20,9 +19,7 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: BlogCicdSlackbotStackProps) {
     super(scope, id, props);
 
-    const { domains, nextEnvs, oidcs, secretArn } = props;
-
-    const secret = Secret.fromSecretCompleteArn(this, `BlogCicdSlackbotSecret`, secretArn);
+    const { nextEnvs, oidcs, secretArn } = props;
 
     const table = new Table(this, "Table", {
       partitionKey: { name: "pk", type: AttributeType.STRING },
@@ -31,6 +28,12 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       timeToLiveAttribute: "ttl",
     });
+
+    const secret = Secret.fromSecretCompleteArn(
+      this,
+      `BlogCicdSlackbotSecret`,
+      secretArn
+    );
 
     const api = new RestApi(this, "BlogCicdSlackbotApi", {
       deployOptions: {
@@ -43,12 +46,12 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
         types: [EndpointType.REGIONAL],
       },
     });
+    const slackResource = api.root.addResource("slack");
 
     const environment = {
       OIDCS: JSON.stringify(oidcs),
       SECRET_ARN: secret.secretArn,
       NEXT_ENVS: JSON.stringify(nextEnvs),
-      DOMAINS: JSON.stringify(domains),
       TABLE_NAME: table.tableName,
     };
 
@@ -58,6 +61,14 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       environment,
     };
+
+    const slackAction = new NodejsFunction(this, "SlackActionFn", {
+      entry: "lib/lambda/api/slack-action.ts",
+      ...lambdaProps,
+    });
+    slackResource
+      .addResource("action")
+      .addMethod("POST", new LambdaIntegration(slackAction));
 
     const githubWebhookFn = new NodejsFunction(this, "GithubWebhookFn", {
       entry: "lib/lambda/api/github-webhook.ts",
@@ -69,18 +80,15 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
       .addResource("github")
       .addMethod("POST", new LambdaIntegration(githubWebhookFn));
 
-    const slackResource = api.root.addResource("slack");
-
     const slackInteractiveFn = new NodejsFunction(this, "SlackInteractiveFn", {
       entry: "lib/lambda/api/slack-interactive.ts",
       ...lambdaProps,
     });
     table.grantReadWriteData(slackInteractiveFn);
     secret.grantRead(slackInteractiveFn);
-    slackResource.addResource("interaction").addMethod(
-      "POST",
-      new LambdaIntegration(slackInteractiveFn)
-    );
+    slackResource
+      .addResource("interaction")
+      .addMethod("POST", new LambdaIntegration(slackInteractiveFn));
 
     const slackAddApprover = new NodejsFunction(this, "SlackAddApproverFn", {
       entry: "lib/lambda/api/slack-add-approver.ts",
@@ -88,39 +96,35 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
     });
     table.grantReadWriteData(slackAddApprover);
     secret.grantRead(slackAddApprover);
-    slackResource.addResource("add-approver").addMethod(
-      "POST",
-      new LambdaIntegration(slackAddApprover)
-    );
+    slackResource
+      .addResource("add-approver")
+      .addMethod("POST", new LambdaIntegration(slackAddApprover));
 
-    const slackRemoveApprover = new NodejsFunction(this, "SlackRemoveApproverFn", {
-      entry: "lib/lambda/api/slack-remove-approver.ts",
-      ...lambdaProps,
-    });
+    const slackRemoveApprover = new NodejsFunction(
+      this,
+      "SlackRemoveApproverFn",
+      {
+        entry: "lib/lambda/api/slack-remove-approver.ts",
+        ...lambdaProps,
+      }
+    );
     table.grantReadWriteData(slackRemoveApprover);
-    slackResource.addResource("remove-approver").addMethod(
-      "POST",
-      new LambdaIntegration(slackRemoveApprover)
-    );
+    slackResource
+      .addResource("remove-approver")
+      .addMethod("POST", new LambdaIntegration(slackRemoveApprover));
 
-    const slackListApprovers = new NodejsFunction(this, "SlackListApproversFn", {
-      entry: "lib/lambda/api/slack-list-approvers.ts",
-      ...lambdaProps,
-    });
+    const slackListApprovers = new NodejsFunction(
+      this,
+      "SlackListApproversFn",
+      {
+        entry: "lib/lambda/api/slack-list-approvers.ts",
+        ...lambdaProps,
+      }
+    );
     table.grantReadData(slackListApprovers);
-    slackResource.addResource("list-approvers").addMethod(
-      "POST",
-      new LambdaIntegration(slackListApprovers)
-    );
-
-    const slackAction = new NodejsFunction(this, "SlackActionFn", {
-      entry: "lib/lambda/api/slack-action.ts",
-      ...lambdaProps,
-    });
-    slackResource.addResource("action").addMethod(
-      "POST",
-      new LambdaIntegration(slackAction)
-    );
+    slackResource
+      .addResource("list-approvers")
+      .addMethod("POST", new LambdaIntegration(slackListApprovers));
 
     // new GitHubOidc(this, `GitHubOidc`, { owner: `dfinitiv` });
   }

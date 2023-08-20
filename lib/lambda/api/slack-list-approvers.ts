@@ -19,7 +19,7 @@ export const handler = async () => {
     sk,
     approvers: {},
   };
-  
+
   return {
     statusCode: 200,
     body: JSON.stringify({
