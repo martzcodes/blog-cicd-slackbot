@@ -126,6 +126,6 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
       .addResource("list-approvers")
       .addMethod("POST", new LambdaIntegration(slackListApprovers));
 
-    // new GitHubOidc(this, `GitHubOidc`, { owner: `dfinitiv` });
+    // new GitHubOidc(this, `GitHubOidc`, { owner: `aws-community-projects` });
   }
 }

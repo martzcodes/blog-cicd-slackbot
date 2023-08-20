@@ -22,28 +22,11 @@ concurrency:
 jobs:
   # test:
   #   name: test
-  #   uses: dfinitiv/mojo-users/.github/workflows/test.yml@main
+  #   uses: aws-community-projects/cicd/.github/workflows/test.yml@main
   deploy-dev:
     name: deploy to dev
     # needs: test
-    uses: dfinitiv/mojo-users/.github/workflows/deploy-to-env.yml@main
+    uses: aws-community-projects/cicd/.github/workflows/deploy-to-env.yml@main
     with:
-      domain_name: 'mojo-dev.dfinitiv.io'
       deploy_env: dev
-      oidc_role: arn:aws:iam::922113822777:role/GitHubOidcRole
-  # deploy-test:
-  #   name: deploy to test
-  #   needs: deploy-dev
-  #   uses: dfinitiv/mojo-users/.github/workflows/deploy-to-env.yml@main
-  #   with:
-  #     domain_name: 'mojo-test.dfinitiv.io'
-  #     deploy_env: test
-  #     oidc_role: arn:aws:iam::922113822777:role/GitHubOidcRole
-  # deploy-prod:
-  #   name: deploy to prod
-  #   needs: deploy-test
-  #   uses: dfinitiv/mojo-users/.github/workflows/deploy-to-env.yml@main
-  #   with:
-  #     domain_name: 'mojo.dfinitiv.io'
-  #     deploy_env: prod
-  #     oidc_role: arn:aws:iam::349520124959:role/GitHubOidcRole
+      oidc_role: arn:aws:iam::123456789012:role/GitHubOidcRole
