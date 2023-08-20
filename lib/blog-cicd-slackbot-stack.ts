@@ -32,6 +32,18 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
       timeToLiveAttribute: "ttl",
     });
 
+    const api = new RestApi(this, "BlogCicdSlackbotApi", {
+      deployOptions: {
+        dataTraceEnabled: true,
+        tracingEnabled: true,
+        metricsEnabled: true,
+      },
+      description: `API for BlogCicdSlackbotApi`,
+      endpointConfiguration: {
+        types: [EndpointType.REGIONAL],
+      },
+    });
+
     const environment = {
       OIDCS: JSON.stringify(oidcs),
       SECRET_ARN: secret.secretArn,
@@ -47,69 +59,67 @@ export class BlogCicdSlackbotStack extends cdk.Stack {
       environment,
     };
 
-    const api = new RestApi(this, "BlogCicdSlackbotApi", {
-      deployOptions: {
-        dataTraceEnabled: true,
-        tracingEnabled: true,
-        metricsEnabled: true,
-      },
-      description: `API for BlogCicdSlackbotApi`,
-      endpointConfiguration: {
-        types: [EndpointType.REGIONAL],
-      },
-    });
-
     const githubWebhookFn = new NodejsFunction(this, "GithubWebhookFn", {
-      entry: "lib/lambda/github-webhook.ts",
+      entry: "lib/lambda/api/github-webhook.ts",
       ...lambdaProps,
     });
     table.grantReadWriteData(githubWebhookFn);
     secret.grantRead(githubWebhookFn);
-
-    const slackInteractiveFn = new NodejsFunction(this, "SlackInteractiveFn", {
-      entry: "lib/lambda/slack-interactive.ts",
-      ...lambdaProps,
-    });
-    table.grantReadWriteData(slackInteractiveFn);
-    secret.grantRead(slackInteractiveFn);
-
-    const slackAddApprover = new NodejsFunction(this, "SlackAddApproverFn", {
-      entry: "lib/lambda/slack-add-approver.ts",
-      ...lambdaProps,
-    });
-    table.grantReadWriteData(slackAddApprover);
-    secret.grantRead(slackAddApprover);
-    const slackRemoveApprover = new NodejsFunction(this, "SlackRemoveApproverFn", {
-      entry: "lib/lambda/slack-remove-approver.ts",
-      ...lambdaProps,
-    });
-    table.grantReadWriteData(slackRemoveApprover);
-    const slackListApprovers = new NodejsFunction(this, "SlackListApproversFn", {
-      entry: "lib/lambda/slack-list-approvers.ts",
-      ...lambdaProps,
-    });
-    table.grantReadData(slackListApprovers);
-
     api.root
       .addResource("github")
       .addMethod("POST", new LambdaIntegration(githubWebhookFn));
 
     const slackResource = api.root.addResource("slack");
+
+    const slackInteractiveFn = new NodejsFunction(this, "SlackInteractiveFn", {
+      entry: "lib/lambda/api/slack-interactive.ts",
+      ...lambdaProps,
+    });
+    table.grantReadWriteData(slackInteractiveFn);
+    secret.grantRead(slackInteractiveFn);
     slackResource.addResource("interaction").addMethod(
       "POST",
       new LambdaIntegration(slackInteractiveFn)
     );
+
+    const slackAddApprover = new NodejsFunction(this, "SlackAddApproverFn", {
+      entry: "lib/lambda/api/slack-add-approver.ts",
+      ...lambdaProps,
+    });
+    table.grantReadWriteData(slackAddApprover);
+    secret.grantRead(slackAddApprover);
     slackResource.addResource("add-approver").addMethod(
       "POST",
       new LambdaIntegration(slackAddApprover)
     );
+
+    const slackRemoveApprover = new NodejsFunction(this, "SlackRemoveApproverFn", {
+      entry: "lib/lambda/api/slack-remove-approver.ts",
+      ...lambdaProps,
+    });
+    table.grantReadWriteData(slackRemoveApprover);
     slackResource.addResource("remove-approver").addMethod(
       "POST",
       new LambdaIntegration(slackRemoveApprover)
     );
+
+    const slackListApprovers = new NodejsFunction(this, "SlackListApproversFn", {
+      entry: "lib/lambda/api/slack-list-approvers.ts",
+      ...lambdaProps,
+    });
+    table.grantReadData(slackListApprovers);
     slackResource.addResource("list-approvers").addMethod(
       "POST",
       new LambdaIntegration(slackListApprovers)
+    );
+
+    const slackAction = new NodejsFunction(this, "SlackActionFn", {
+      entry: "lib/lambda/api/slack-action.ts",
+      ...lambdaProps,
+    });
+    slackResource.addResource("action").addMethod(
+      "POST",
+      new LambdaIntegration(slackAction)
     );
 
     // new GitHubOidc(this, `GitHubOidc`, { owner: `dfinitiv` });

@@ -21,5 +21,5 @@ new BlogCicdSlackbotStack(app, "BlogCicdSlackbotStack", {
   domains,
   nextEnvs,
   oidcs,
-  secretArn: "arn:aws:secretsmanager:us-east-1:285122741819:secret:deployer-IInGx1",
+  secretArn: "arn:aws:secretsmanager:us-east-1:922113822777:secret:deployer-600TuA",
 });
